@@ -4,7 +4,9 @@ import requests
 from django.core.paginator import Paginator
 from django.core.serializers.json import DjangoJSONEncoder
 from django.db.models import OuterRef, Q, Subquery
+from django.http import JsonResponse
 from django.shortcuts import get_object_or_404, render
+from django.views.decorators.http import require_POST
 
 from . import dart, gemini_client
 from .models import DailyPrice, DisclosureAnalysis, Stock
@@ -40,11 +42,8 @@ def stock_list(request):
     })
 
 
-MAX_AUTO_ANALYZE_PER_VISIT = 3  # 페이지 방문마다 새로 분석할 공시 수 상한 (응답 지연/API 비용 제한)
-
-
-def _annotate_with_ai_analysis(stock, disclosures):
-    """미분석 공시 중 최신 몇 건을 Gemini로 분석해 DB에 캐싱하고, 각 disclosure dict에 결과를 채운다."""
+def _attach_cached_analysis(disclosures):
+    """이미 분석된 공시가 있으면 결과를 dict에 채운다. 새 분석은 사용자가 버튼을 눌렀을 때만 실행된다."""
     if not disclosures:
         return
 
@@ -52,39 +51,38 @@ def _annotate_with_ai_analysis(stock, disclosures):
         a.rcept_no: a
         for a in DisclosureAnalysis.objects.filter(rcept_no__in=[d['rcept_no'] for d in disclosures])
     }
-    remaining_slots = MAX_AUTO_ANALYZE_PER_VISIT
-
     for d in disclosures:
         analysis = existing.get(d['rcept_no'])
-        if analysis:
-            d['ai_summary'] = analysis.summary
-            d['ai_error'] = None
-            continue
-        if remaining_slots <= 0:
-            d['ai_summary'] = None
-            d['ai_error'] = None
-            continue
+        d['ai_summary'] = analysis.summary if analysis else None
 
-        remaining_slots -= 1
-        try:
-            body_text = dart.get_document_text(d['rcept_no'])
-            summary = gemini_client.analyze_disclosure(
-                corp_name=stock.stock_name, report_nm=d['report_nm'], rcept_dt=d['rcept_dt'], body_text=body_text,
-            )
-            DisclosureAnalysis.objects.update_or_create(
-                rcept_no=d['rcept_no'],
-                defaults={
-                    'stock_id': stock.stock_code,
-                    'report_nm': d['report_nm'],
-                    'rcept_dt': d['rcept_dt'],
-                    'summary': summary,
-                },
-            )
-            d['ai_summary'] = summary
-            d['ai_error'] = None
-        except (dart.DartError, gemini_client.GeminiError, requests.RequestException) as e:
-            d['ai_summary'] = None
-            d['ai_error'] = str(e)
+
+@require_POST
+def analyze_disclosure(request, stock_code, rcept_no):
+    stock = get_object_or_404(Stock, stock_code=stock_code)
+    report_nm = request.POST.get('report_nm', '')
+    rcept_dt = request.POST.get('rcept_dt', '')
+
+    analysis = DisclosureAnalysis.objects.filter(rcept_no=rcept_no).first()
+    if analysis:
+        return JsonResponse({'summary': analysis.summary})
+
+    try:
+        body_text = dart.get_document_text(rcept_no)
+        summary = gemini_client.analyze_disclosure(
+            corp_name=stock.stock_name, report_nm=report_nm, rcept_dt=rcept_dt, body_text=body_text,
+        )
+        DisclosureAnalysis.objects.update_or_create(
+            rcept_no=rcept_no,
+            defaults={
+                'stock_id': stock.stock_code,
+                'report_nm': report_nm,
+                'rcept_dt': rcept_dt,
+                'summary': summary,
+            },
+        )
+        return JsonResponse({'summary': summary})
+    except (dart.DartError, gemini_client.GeminiError, requests.RequestException) as e:
+        return JsonResponse({'error': str(e)}, status=502)
 
 
 PERIOD_DAYS = {
@@ -155,7 +153,7 @@ def stock_detail(request, stock_code):
         dart_error = 'DART 서버에 연결할 수 없습니다. 잠시 후 다시 시도해 주세요.'
 
     if not dart_error:
-        _annotate_with_ai_analysis(stock, disclosures)
+        _attach_cached_analysis(disclosures)
 
     return render(request, 'stocks/stock_detail.html', {
         'stock': stock,

@@ -258,16 +258,22 @@
         text-align: left;
         white-space: normal;
     }
-    .ai-summary.ai-pending {
-        background: transparent;
-        border-left-color: var(--border);
-        color: var(--text-muted);
-    }
     .ai-summary.ai-error {
         background: rgba(255, 77, 94, 0.08);
         border-left-color: var(--up);
         color: var(--text-muted);
     }
+    .ai-analyze-btn {
+        background: transparent;
+        border: 1px solid var(--border);
+        border-radius: 6px;
+        padding: 6px 12px;
+        font-size: 0.8rem;
+        color: var(--text-muted);
+        cursor: pointer;
+    }
+    .ai-analyze-btn:hover { border-color: var(--accent); color: var(--text); }
+    .ai-analyze-btn:disabled { opacity: 0.6; cursor: default; }
 </style>
 </head>
 <body>
