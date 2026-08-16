@@ -1,0 +1,281 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>{% block title %}주식 분석{% endblock %}</title>
+<style>
+    :root {
+        --bg: #0b0e14;
+        --bg-elevated: #121722;
+        --surface: #161c2b;
+        --surface-hover: #1c2436;
+        --border: #262f45;
+        --border-soft: #1e263a;
+        --text: #e6e9f0;
+        --text-muted: #8b93a7;
+        --accent: #4f8cff;
+        --accent-soft: rgba(79, 140, 255, 0.12);
+        --up: #ff4d5e;
+        --down: #4c8dff;
+        --radius: 10px;
+    }
+    * { box-sizing: border-box; }
+    body {
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Apple SD Gothic Neo",
+            "Malgun Gothic", sans-serif;
+        margin: 0;
+        background: var(--bg);
+        background-image: radial-gradient(circle at 15% 0%, rgba(79, 140, 255, 0.08), transparent 40%);
+        color: var(--text);
+        -webkit-font-smoothing: antialiased;
+    }
+    header {
+        background: rgba(11, 14, 20, 0.85);
+        backdrop-filter: blur(8px);
+        border-bottom: 1px solid var(--border-soft);
+        padding: 16px 32px;
+        position: sticky;
+        top: 0;
+        z-index: 10;
+    }
+    header a {
+        color: var(--text);
+        text-decoration: none;
+        font-size: 1.15rem;
+        font-weight: 700;
+        letter-spacing: -0.01em;
+    }
+    header a span.accent { color: var(--accent); }
+    main {
+        max-width: 1040px;
+        margin: 32px auto 80px;
+        padding: 0 24px;
+    }
+    h1, h2 {
+        font-weight: 700;
+        letter-spacing: -0.01em;
+    }
+    h1 { font-size: 1.6rem; }
+    h1 small {
+        font-weight: 400;
+        color: var(--text-muted);
+        font-size: 1rem;
+    }
+    h2 {
+        font-size: 1.05rem;
+        color: var(--text-muted);
+        margin-top: 40px;
+        margin-bottom: 16px;
+        text-transform: uppercase;
+        letter-spacing: 0.04em;
+        font-size: 0.8rem;
+    }
+    .table-wrap {
+        background: var(--surface);
+        border: 1px solid var(--border-soft);
+        border-radius: var(--radius);
+        overflow: hidden;
+    }
+    table {
+        width: 100%;
+        border-collapse: collapse;
+        font-variant-numeric: tabular-nums;
+    }
+    th, td {
+        padding: 12px 16px;
+        text-align: right;
+        font-size: 0.9rem;
+    }
+    td { border-top: 1px solid var(--border-soft); }
+    th:first-child, td:first-child,
+    th:nth-child(2), td:nth-child(2) {
+        text-align: left;
+    }
+    th {
+        color: var(--text-muted);
+        font-weight: 600;
+        font-size: 0.75rem;
+        text-transform: uppercase;
+        letter-spacing: 0.04em;
+        background: var(--bg-elevated);
+    }
+    tbody tr {
+        transition: background 0.12s ease;
+    }
+    tbody tr:hover { background: var(--surface-hover); }
+    a.stock-link { color: var(--text); text-decoration: none; font-weight: 600; }
+    a.stock-link:hover { color: var(--accent); }
+    .up { color: var(--up); font-weight: 600; }
+    .down { color: var(--down); font-weight: 600; }
+    .search-box {
+        margin-bottom: 20px;
+        display: flex;
+        gap: 10px;
+    }
+    .search-box input[type="text"] {
+        flex: 1;
+        padding: 10px 14px;
+        border: 1px solid var(--border);
+        border-radius: var(--radius);
+        background: var(--surface);
+        color: var(--text);
+        font-size: 0.9rem;
+        outline: none;
+        transition: border-color 0.15s ease;
+    }
+    .search-box input[type="text"]::placeholder { color: var(--text-muted); }
+    .search-box input[type="text"]:focus { border-color: var(--accent); }
+    .search-box button {
+        padding: 10px 20px;
+        border: none;
+        background: var(--accent);
+        color: #fff;
+        border-radius: var(--radius);
+        font-weight: 600;
+        font-size: 0.9rem;
+        cursor: pointer;
+        transition: opacity 0.15s ease;
+    }
+    .search-box button:hover { opacity: 0.85; }
+    .pagination {
+        margin-top: 20px;
+        display: flex;
+        align-items: center;
+        gap: 16px;
+        color: var(--text-muted);
+        font-size: 0.85rem;
+    }
+    .pagination a {
+        color: var(--text);
+        text-decoration: none;
+        padding: 6px 14px;
+        border: 1px solid var(--border);
+        border-radius: 6px;
+    }
+    .pagination a:hover { border-color: var(--accent); color: var(--accent); }
+    .summary-cards { display: flex; gap: 16px; margin-bottom: 28px; }
+    .card {
+        background: var(--surface);
+        border: 1px solid var(--border-soft);
+        border-left: 3px solid var(--accent);
+        border-radius: var(--radius);
+        padding: 18px 20px;
+        flex: 1;
+    }
+    .card .label {
+        font-size: 0.75rem;
+        color: var(--text-muted);
+        text-transform: uppercase;
+        letter-spacing: 0.04em;
+    }
+    .card .value {
+        font-size: 1.5rem;
+        font-weight: 700;
+        margin-top: 6px;
+        font-variant-numeric: tabular-nums;
+    }
+    .back-link {
+        display: inline-block;
+        margin-bottom: 20px;
+        color: var(--text-muted);
+        text-decoration: none;
+        font-size: 0.85rem;
+    }
+    .back-link:hover { color: var(--accent); }
+    .chart-toolbar {
+        display: flex;
+        align-items: center;
+        gap: 16px;
+        flex-wrap: wrap;
+        margin-bottom: 12px;
+    }
+    .period-select { display: flex; gap: 6px; }
+    .period-select a {
+        padding: 6px 12px;
+        border: 1px solid var(--border);
+        border-radius: 6px;
+        color: var(--text-muted);
+        text-decoration: none;
+        font-size: 0.8rem;
+    }
+    .period-select a:hover { color: var(--accent); }
+    .period-select a.active {
+        background: var(--accent-soft);
+        color: var(--accent);
+        border-color: var(--accent);
+    }
+    .chart-legend {
+        display: flex;
+        gap: 14px;
+        margin-left: auto;
+        font-size: 0.78rem;
+        color: var(--text-muted);
+    }
+    .legend-item i {
+        display: inline-block;
+        width: 10px;
+        height: 10px;
+        border-radius: 2px;
+        margin-right: 4px;
+        vertical-align: middle;
+    }
+    #resetZoom {
+        padding: 6px 14px;
+        border: 1px solid var(--border);
+        background: var(--surface);
+        color: var(--text);
+        border-radius: 6px;
+        cursor: pointer;
+        font-size: 0.8rem;
+    }
+    #resetZoom:hover { border-color: var(--accent); color: var(--accent); }
+    .chart-box {
+        background: var(--surface);
+        border: 1px solid var(--border-soft);
+        border-radius: var(--radius);
+        padding: 16px;
+        margin-bottom: 6px;
+    }
+    .chart-box.volume-box {
+        padding-top: 8px;
+        margin-bottom: 0;
+    }
+    .chart-hint {
+        color: var(--text-muted);
+        font-size: 0.75rem;
+        margin-top: 8px;
+    }
+    tr.ai-row td { border-top: none; padding-top: 0; padding-bottom: 12px; }
+    .ai-summary {
+        background: var(--accent-soft);
+        border-left: 3px solid var(--accent);
+        border-radius: 6px;
+        padding: 10px 14px;
+        font-size: 0.82rem;
+        line-height: 1.6;
+        color: var(--text);
+        text-align: left;
+        white-space: normal;
+    }
+    .ai-summary.ai-pending {
+        background: transparent;
+        border-left-color: var(--border);
+        color: var(--text-muted);
+    }
+    .ai-summary.ai-error {
+        background: rgba(255, 77, 94, 0.08);
+        border-left-color: var(--up);
+        color: var(--text-muted);
+    }
+</style>
+</head>
+<body>
+<header>
+    <a href="{% url 'stocks:stock_list' %}">📈 <span class="accent">주식</span> 분석</a>
+</header>
+<main>
+    {% block content %}{% endblock %}
+</main>
+</body>
+</html>

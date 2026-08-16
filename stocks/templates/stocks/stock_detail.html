@@ -1,0 +1,282 @@
+{% extends "base.html" %}
+{% block title %}{{ stock.stock_name }} - 주식 분석{% endblock %}
+{% block content %}
+<a class="back-link" href="{% url 'stocks:stock_list' %}">&larr; 목록으로</a>
+<h1>{{ stock.stock_name }} <small>({{ stock.stock_code }})</small></h1>
+
+<div class="summary-cards">
+    <div class="card">
+        <div class="label">현재가</div>
+        <div class="value">{{ latest.now_price|default:"-" }}</div>
+    </div>
+    <div class="card">
+        <div class="label">전일 대비</div>
+        <div class="value {% if change > 0 %}up{% elif change < 0 %}down{% endif %}">
+            {% if change is not None %}
+                {{ change }} ({{ change_rate }}%)
+            {% else %}
+                -
+            {% endif %}
+        </div>
+    </div>
+    <div class="card">
+        <div class="label">거래량</div>
+        <div class="value">{{ latest.trade_qty|default:"-" }}</div>
+    </div>
+</div>
+
+<div class="chart-toolbar">
+    <div class="period-select">
+        <a class="{% if period == '1m' %}active{% endif %}" href="?period=1m">1개월</a>
+        <a class="{% if period == '3m' %}active{% endif %}" href="?period=3m">3개월</a>
+        <a class="{% if period == '6m' %}active{% endif %}" href="?period=6m">6개월</a>
+        <a class="{% if period == '1y' %}active{% endif %}" href="?period=1y">1년</a>
+        <a class="{% if period == 'all' %}active{% endif %}" href="?period=all">전체</a>
+    </div>
+    <div class="chart-legend">
+        <span class="legend-item"><i style="background:#ff4d5e"></i>양봉</span>
+        <span class="legend-item"><i style="background:#4c8dff"></i>음봉</span>
+        <span class="legend-item"><i style="background:#f5a623"></i>MA5</span>
+        <span class="legend-item"><i style="background:#9b59f5"></i>MA20</span>
+        <span class="legend-item"><i style="background:#8b93a7"></i>MA60</span>
+    </div>
+    <button id="resetZoom" type="button">확대 초기화</button>
+</div>
+
+<div class="chart-box">
+    <canvas id="priceChart" height="110"></canvas>
+</div>
+<div class="chart-box volume-box">
+    <canvas id="volumeChart" height="40"></canvas>
+</div>
+<p class="chart-hint">마우스 휠로 확대, 드래그로 이동할 수 있습니다.</p>
+
+<h2>일별 시세 (최근 {{ prices|length }}거래일)</h2>
+<div class="table-wrap">
+<table>
+    <thead>
+        <tr>
+            <th>날짜</th>
+            <th>종가</th>
+            <th>시가</th>
+            <th>고가</th>
+            <th>저가</th>
+            <th>거래량</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for p in prices %}
+        <tr>
+            <td>{{ p.stock_date }}</td>
+            <td>{{ p.now_price }}</td>
+            <td>{{ p.start_price }}</td>
+            <td>{{ p.high_price }}</td>
+            <td>{{ p.low_price }}</td>
+            <td>{{ p.trade_qty }}</td>
+        </tr>
+        {% empty %}
+        <tr><td colspan="6">시세 데이터가 없습니다.</td></tr>
+        {% endfor %}
+    </tbody>
+</table>
+</div>
+
+<h2>DART 공시</h2>
+{% if dart_error %}
+<p class="chart-hint">{{ dart_error }}</p>
+{% else %}
+<div class="table-wrap">
+<table>
+    <thead>
+        <tr>
+            <th>접수일자</th>
+            <th>보고서명</th>
+            <th>제출인</th>
+            <th>비고</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for d in disclosures %}
+        <tr>
+            <td>{{ d.rcept_dt|slice:":4" }}-{{ d.rcept_dt|slice:"4:6" }}-{{ d.rcept_dt|slice:"6:8" }}</td>
+            <td><a class="stock-link" href="{{ d.url }}" target="_blank" rel="noopener">{{ d.report_nm }}</a></td>
+            <td>{{ d.flr_nm }}</td>
+            <td>{{ d.rm }}</td>
+        </tr>
+        <tr class="ai-row">
+            <td></td>
+            <td colspan="3">
+                {% if d.ai_summary %}
+                <div class="ai-summary">🤖 {{ d.ai_summary|linebreaksbr }}</div>
+                {% elif d.ai_error %}
+                <div class="ai-summary ai-error">AI 분석 실패: {{ d.ai_error }}</div>
+                {% else %}
+                <div class="ai-summary ai-pending">다음 방문 시 자동으로 AI 분석됩니다.</div>
+                {% endif %}
+            </td>
+        </tr>
+        {% empty %}
+        <tr><td colspan="4">최근 공시 내역이 없습니다.</td></tr>
+        {% endfor %}
+    </tbody>
+</table>
+</div>
+{% endif %}
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4"></script>
+<script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-zoom@2"></script>
+<script>
+    const ohlc = {{ chart_data|safe }};
+    const ma = {{ ma_data|safe }};
+
+    const UP = '#ff4d5e';
+    const DOWN = '#4c8dff';
+    const MUTED = '#8b93a7';
+    const GRID = 'rgba(255,255,255,0.05)';
+
+    const dates = ohlc.map(d => d.date);
+    const bodyColors = ohlc.map(d => d.c >= d.o ? UP : DOWN);
+    const bodies = ohlc.map(d => [Math.min(d.o, d.c), Math.max(d.o, d.c)]);
+    const wicks = ohlc.map(d => [d.l, d.h]);
+    const volumes = ohlc.map(d => d.v);
+    const maxVolume = Math.max(...volumes.filter(v => v != null), 1);
+    const lows = ohlc.map(d => d.l).filter(v => v != null);
+    const highs = ohlc.map(d => d.h).filter(v => v != null);
+    const priceMin = Math.min(...lows);
+    const priceMax = Math.max(...highs);
+    const priceMargin = (priceMax - priceMin) * 0.1 || priceMax * 0.05;
+
+    function maDataset(key, color) {
+        return {
+            type: 'line',
+            label: key.toUpperCase(),
+            data: ma[key],
+            borderColor: color,
+            borderWidth: 1.5,
+            pointRadius: 0,
+            spanGaps: false,
+            yAxisID: 'y',
+            order: 0,
+        };
+    }
+
+    const chart = new Chart(document.getElementById('priceChart'), {
+        data: {
+            labels: dates,
+            datasets: [
+                {
+                    type: 'bar',
+                    label: '고가-저가',
+                    data: wicks,
+                    backgroundColor: bodyColors,
+                    barPercentage: 0.8,
+                    categoryPercentage: 0.7,
+                    barThickness: 2,
+                    grouped: false,
+                    yAxisID: 'y',
+                    order: 1,
+                },
+                {
+                    type: 'bar',
+                    label: '시가-종가',
+                    data: bodies,
+                    backgroundColor: bodyColors,
+                    barPercentage: 0.8,
+                    categoryPercentage: 0.7,
+                    grouped: false,
+                    yAxisID: 'y',
+                    order: 1,
+                },
+                maDataset('ma5', '#f5a623'),
+                maDataset('ma20', '#9b59f5'),
+                maDataset('ma60', MUTED),
+            ],
+        },
+        options: {
+            interaction: { intersect: false, mode: 'index' },
+            plugins: {
+                legend: { display: false },
+                tooltip: {
+                    filter: (item) => item.dataset.label === '시가-종가',
+                    callbacks: {
+                        label: (item) => {
+                            const d = ohlc[item.dataIndex];
+                            return [`시가 ${d.o}`, `고가 ${d.h}`, `저가 ${d.l}`, `종가 ${d.c}`];
+                        },
+                    },
+                },
+                zoom: {
+                    pan: { enabled: true, mode: 'x', onPanComplete: syncVolumeZoom },
+                    zoom: {
+                        wheel: { enabled: true },
+                        pinch: { enabled: true },
+                        mode: 'x',
+                        onZoomComplete: syncVolumeZoom,
+                    },
+                    limits: { x: { minRange: 5 } },
+                },
+            },
+            scales: {
+                x: {
+                    type: 'category',
+                    ticks: { color: MUTED, maxRotation: 0, autoSkip: true },
+                    grid: { color: GRID },
+                },
+                y: {
+                    type: 'linear',
+                    position: 'left',
+                    min: priceMin - priceMargin,
+                    max: priceMax + priceMargin,
+                    ticks: { color: MUTED },
+                    grid: { color: GRID },
+                },
+            },
+        },
+    });
+
+    const volumeChart = new Chart(document.getElementById('volumeChart'), {
+        type: 'bar',
+        data: {
+            labels: dates,
+            datasets: [{
+                label: '거래량',
+                data: volumes,
+                backgroundColor: bodyColors.map(c => c === UP ? 'rgba(255,77,94,0.5)' : 'rgba(76,141,255,0.5)'),
+                barPercentage: 0.8,
+                categoryPercentage: 0.7,
+            }],
+        },
+        options: {
+            interaction: { intersect: false, mode: 'index' },
+            plugins: {
+                legend: { display: false },
+                tooltip: {
+                    callbacks: {
+                        label: (item) => `거래량 ${(item.raw ?? 0).toLocaleString()}`,
+                    },
+                },
+            },
+            scales: {
+                x: {
+                    type: 'category',
+                    ticks: { color: MUTED, maxRotation: 0, autoSkip: true },
+                    grid: { display: false },
+                },
+                y: {
+                    ticks: { color: MUTED, maxTicksLimit: 3 },
+                    grid: { color: GRID },
+                },
+            },
+        },
+    });
+
+    function syncVolumeZoom({ chart: source }) {
+        volumeChart.zoomScale('x', { min: source.scales.x.min, max: source.scales.x.max }, 'none');
+    }
+
+    document.getElementById('resetZoom').addEventListener('click', () => {
+        chart.resetZoom();
+        volumeChart.resetZoom();
+    });
+</script>
+{% endblock %}

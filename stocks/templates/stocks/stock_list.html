@@ -1,0 +1,53 @@
+{% extends "base.html" %}
+{% block title %}종목 목록 - 주식 분석{% endblock %}
+{% block content %}
+<form class="search-box" method="get">
+    <input type="text" name="q" value="{{ query }}" placeholder="종목코드 또는 종목명 검색">
+    <button type="submit">검색</button>
+</form>
+
+<div class="table-wrap">
+<table>
+    <thead>
+        <tr>
+            <th>종목코드</th>
+            <th>종목명</th>
+            <th>시장구분</th>
+            <th>현재가</th>
+            <th>등락률</th>
+            <th>거래량</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for stock in page_obj %}
+        <tr>
+            <td>{{ stock.stock_code }}</td>
+            <td><a class="stock-link" href="{% url 'stocks:stock_detail' stock.stock_code %}">{{ stock.stock_name }}</a></td>
+            <td>{{ stock.market_gb|default:"-" }}</td>
+            <td>{{ stock.latest_price|default:"-" }}</td>
+            <td class="{% if stock.change_rate > 0 %}up{% elif stock.change_rate < 0 %}down{% endif %}">
+                {% if stock.change_rate is not None %}
+                    {{ stock.change|stringformat:"+d" }} ({{ stock.change_rate|stringformat:"+.2f" }}%)
+                {% else %}
+                    -
+                {% endif %}
+            </td>
+            <td>{{ stock.latest_volume|default:"-" }}</td>
+        </tr>
+        {% empty %}
+        <tr><td colspan="6">검색 결과가 없습니다.</td></tr>
+        {% endfor %}
+    </tbody>
+</table>
+</div>
+
+<div class="pagination">
+    {% if page_obj.has_previous %}
+        <a href="?q={{ query }}&page={{ page_obj.previous_page_number }}">이전</a>
+    {% endif %}
+    <span>{{ page_obj.number }} / {{ page_obj.paginator.num_pages }}</span>
+    {% if page_obj.has_next %}
+        <a href="?q={{ query }}&page={{ page_obj.next_page_number }}">다음</a>
+    {% endif %}
+</div>
+{% endblock %}
