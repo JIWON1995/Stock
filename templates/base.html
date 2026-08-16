@@ -47,6 +47,52 @@
         letter-spacing: -0.01em;
     }
     header a span.accent { color: var(--accent); }
+    .header-inner {
+        max-width: 1040px;
+        margin: 0 auto;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 24px;
+    }
+    .sector-menu { position: relative; }
+    .sector-menu summary {
+        list-style: none;
+        cursor: pointer;
+        color: var(--text-muted);
+        font-size: 0.85rem;
+        padding: 6px 12px;
+        border: 1px solid var(--border);
+        border-radius: 6px;
+    }
+    .sector-menu summary::-webkit-details-marker { display: none; }
+    .sector-menu[open] summary { color: var(--text); border-color: var(--accent); }
+    .sector-menu .sector-panel {
+        position: absolute;
+        right: 0;
+        top: calc(100% + 6px);
+        background: var(--surface);
+        border: 1px solid var(--border-soft);
+        border-radius: var(--radius);
+        padding: 8px;
+        display: grid;
+        grid-template-columns: repeat(2, minmax(140px, 1fr));
+        gap: 2px;
+        max-height: 60vh;
+        overflow-y: auto;
+        z-index: 20;
+    }
+    .sector-panel a {
+        display: block;
+        padding: 6px 10px;
+        border-radius: 6px;
+        font-size: 0.82rem;
+        font-weight: 400;
+        color: var(--text-muted);
+        white-space: nowrap;
+    }
+    .sector-panel a:hover { background: var(--surface-hover); color: var(--text); }
+    .sector-panel a.active { color: var(--accent); font-weight: 700; }
     main {
         max-width: 1040px;
         margin: 32px auto 80px;
@@ -278,7 +324,21 @@
 </head>
 <body>
 <header>
-    <a href="{% url 'stocks:stock_list' %}">📈 <span class="accent">주식</span> 분석</a>
+    <div class="header-inner">
+        <a href="{% url 'stocks:stock_list' %}">📈 <span class="accent">주식</span> 분석</a>
+        <details class="sector-menu">
+            <summary>업종 {% if current_sector %}▾ 선택됨{% else %}▾{% endif %}</summary>
+            <div class="sector-panel">
+                <a href="{% url 'stocks:stock_list' %}" class="{% if not current_sector %}active{% endif %}">전체</a>
+                {% for s in sector_menu %}
+                <a
+                    href="{% url 'stocks:stock_list' %}?sector={{ s.node_code }}"
+                    class="{% if current_sector == s.node_code %}active{% endif %}"
+                >{{ s.node_name }}</a>
+                {% endfor %}
+            </div>
+        </details>
+    </div>
 </header>
 <main>
     {% block content %}{% endblock %}

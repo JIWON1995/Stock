@@ -1,8 +1,12 @@
 {% extends "base.html" %}
-{% block title %}종목 목록 - 주식 분석{% endblock %}
+{% block title %}{% if sector_name %}{{ sector_name }} - {% endif %}종목 목록 - 주식 분석{% endblock %}
 {% block content %}
+{% if sector_name %}
+<h1>{{ sector_name }} <small><a class="stock-link" href="{% url 'stocks:stock_list' %}">전체보기</a></small></h1>
+{% endif %}
 <form class="search-box" method="get">
     <input type="text" name="q" value="{{ query }}" placeholder="종목코드 또는 종목명 검색">
+    <input type="hidden" name="sector" value="{{ sector }}">
     <button type="submit">검색</button>
 </form>
 
@@ -43,11 +47,11 @@
 
 <div class="pagination">
     {% if page_obj.has_previous %}
-        <a href="?q={{ query }}&page={{ page_obj.previous_page_number }}">이전</a>
+        <a href="?q={{ query }}&sector={{ sector }}&page={{ page_obj.previous_page_number }}">이전</a>
     {% endif %}
     <span>{{ page_obj.number }} / {{ page_obj.paginator.num_pages }}</span>
     {% if page_obj.has_next %}
-        <a href="?q={{ query }}&page={{ page_obj.next_page_number }}">다음</a>
+        <a href="?q={{ query }}&sector={{ sector }}&page={{ page_obj.next_page_number }}">다음</a>
     {% endif %}
 </div>
 {% endblock %}

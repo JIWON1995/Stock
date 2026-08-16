@@ -10,13 +10,17 @@ from django.views.decorators.http import require_POST
 
 from . import dart, gemini_client
 from .models import DailyPrice, DisclosureAnalysis, Stock
+from .sectors import get_sector_name, get_sector_stock_codes
 
 
 def stock_list(request):
     query = request.GET.get('q', '').strip()
+    sector = request.GET.get('sector', '').strip()
     stocks = Stock.objects.filter(Q(delete_date__isnull=True) | Q(delete_date=''))
     if query:
         stocks = stocks.filter(Q(stock_code__icontains=query) | Q(stock_name__icontains=query))
+    if sector:
+        stocks = stocks.filter(stock_code__in=get_sector_stock_codes(sector))
 
     recent_prices = DailyPrice.objects.filter(stock=OuterRef('pk')).order_by('-stock_date')
     stocks = stocks.annotate(
@@ -39,6 +43,8 @@ def stock_list(request):
     return render(request, 'stocks/stock_list.html', {
         'page_obj': page_obj,
         'query': query,
+        'sector': sector,
+        'sector_name': get_sector_name(sector) if sector else None,
     })
 
 

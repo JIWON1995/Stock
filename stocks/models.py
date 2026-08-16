@@ -57,6 +57,21 @@ class DailyPrice(models.Model):
         return f'{self.stock_id} {self.stock_date}'
 
 
+class SectorNode(models.Model):
+    """업종 분류 트리. NODE_CODE는 2자리씩 계층을 나타내며, STOCK_CODE가 채워진 행이 해당 업종에 속한 종목이다."""
+    node_code = models.CharField(db_column='NODE_CODE', primary_key=True, max_length=20)
+    node_name = models.CharField(db_column='NODE_NAME', max_length=50, blank=True, null=True)
+    stock_code = models.CharField(db_column='STOCK_CODE', max_length=6, blank=True, null=True)
+    node_desc = models.CharField(db_column='NODE_DESC', max_length=100, blank=True, null=True)
+
+    class Meta:
+        managed = False
+        db_table = 'TNODE'
+
+    def __str__(self):
+        return f'{self.node_code} {self.node_name}'
+
+
 class DisclosureAnalysis(models.Model):
     """DART 공시(rcept_no)별 Gemini 분석 결과 캐시. 새로 만든 테이블(관리 대상)."""
     rcept_no = models.CharField(primary_key=True, max_length=20)
