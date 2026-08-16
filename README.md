@@ -55,22 +55,6 @@ python manage.py createsuperuser
 
 DB 접속정보는 `.env` 파일에서 관리하며 저장소에는 커밋하지 않습니다 (`.gitignore`에 등록됨).
 
-```
-DEBUG=True
-SECRET_KEY=...
-
-DB_NAME=ywlove
-DB_USER=redbull
-DB_PASSWORD=...
-DB_HOST=my8003.gabiadb.com
-DB_PORT=3306
-
-# https://opendart.fss.or.kr 에서 발급받은 Open API 인증키
-DART_API_KEY=...
-
-# https://aistudio.google.com 에서 발급받은 Gemini API 인증키
-GEMINI_API_KEY=...
-```
 
 ## 주요 기능
 
